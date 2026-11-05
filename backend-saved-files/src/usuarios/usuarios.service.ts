@@ -1,9 +1,11 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { Rol } from '../common/enums/rol.enum.js';
+import { actualizar } from '../common/util/actualizar.js';
+import { ActualizarUsuarioDto, CrearUsuarioDto } from './usuarios.dto.js';
 import { Usuario } from './usuario.entity.js';
 
 @Injectable()
@@ -42,5 +44,46 @@ export class UsuariosService implements OnApplicationBootstrap {
 
   buscarPorId(id: string): Promise<Usuario | null> {
     return this.repo.findOneBy({ id, activo: true });
+  }
+
+  listar(): Promise<Usuario[]> {
+    return this.repo.find({ where: { activo: true }, relations: { unidad: true }, order: { username: 'ASC' } });
+  }
+
+  private validarRolUnidad(rol: Rol, unidadId?: string | null) {
+    if (rol === Rol.RESPONSABLE_UNIDAD && !unidadId) {
+      throw new BadRequestException('El responsable de unidad debe tener una unidad asignada');
+    }
+  }
+
+  async crear(dto: CrearUsuarioDto): Promise<Usuario> {
+    this.validarRolUnidad(dto.rol, dto.unidadId);
+    if (await this.repo.existsBy({ username: dto.username })) throw new ConflictException('El nombre de usuario ya existe');
+    const { password, ...resto } = dto;
+    const u = await this.repo.save(this.repo.create({ ...resto, passwordHash: await bcrypt.hash(password, 12) }));
+    return this.buscarPorId(u.id) as Promise<Usuario>;
+  }
+
+  async actualizar(id: string, dto: ActualizarUsuarioDto): Promise<Usuario> {
+    const u = await this.buscarPorId(id);
+    if (!u) throw new NotFoundException('Usuario no encontrado');
+    const rol = dto.rol ?? u.rol;
+    const unidadId = dto.unidadId !== undefined ? dto.unidadId : u.unidadId;
+    this.validarRolUnidad(rol, unidadId);
+    delete u.unidad;
+    Object.assign(u, dto);
+    await this.repo.save(u);
+    return this.buscarPorId(id) as Promise<Usuario>;
+  }
+
+  async cambiarPassword(id: string, password: string): Promise<void> {
+    const n = await actualizar(this.repo.manager, Usuario, { id, activo: true }, { passwordHash: await bcrypt.hash(password, 12) });
+    if (!n) throw new NotFoundException('Usuario no encontrado');
+  }
+
+  async desactivar(id: string, solicitanteId: string): Promise<void> {
+    if (id === solicitanteId) throw new BadRequestException('No puedes desactivar tu propio usuario');
+    const n = await actualizar(this.repo.manager, Usuario, { id, activo: true }, { activo: false });
+    if (!n) throw new NotFoundException('Usuario no encontrado');
   }
 }

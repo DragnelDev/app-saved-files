@@ -3,11 +3,23 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
+import { AuditoriaModule } from './auditoria/auditoria.module.js';
+import { BitacoraSubscriber } from './auditoria/bitacora.subscriber.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ClasificacionModule } from './clasificacion/clasificacion.module.js';
 import { AuditableSubscriber } from './common/context/auditable.subscriber.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { RequestContextInterceptor } from './common/interceptors/request-context.interceptor.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
+import { DatabaseModule } from './database/database.module.js';
+import { DisposicionModule } from './disposicion/disposicion.module.js';
+import { ExpedientesModule } from './expedientes/expedientes.module.js';
+import { PrestamosModule } from './prestamos/prestamos.module.js';
+import { ReportesModule } from './reportes/reportes.module.js';
+import { TransferenciasModule } from './transferencias/transferencias.module.js';
+import { UbicacionesModule } from './ubicaciones/ubicaciones.module.js';
+import { UnidadesModule } from './unidades/unidades.module.js';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
 
 @Module({
@@ -23,12 +35,23 @@ import { UsuariosModule } from './usuarios/usuarios.module.js';
         username: config.getOrThrow<string>('DB_USER'),
         password: config.getOrThrow<string>('DB_PASSWORD'),
         autoLoadEntities: true,
-        subscribers: [AuditableSubscriber],
+        subscribers: [AuditableSubscriber, BitacoraSubscriber],
         synchronize: config.get('DB_SYNC') === 'true',
       }),
     }),
+    DatabaseModule,
+    AuditoriaModule,
+    UnidadesModule,
     UsuariosModule,
     AuthModule,
+    ClasificacionModule,
+    UbicacionesModule,
+    ExpedientesModule,
+    TransferenciasModule,
+    PrestamosModule,
+    DisposicionModule,
+    ReportesModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [
