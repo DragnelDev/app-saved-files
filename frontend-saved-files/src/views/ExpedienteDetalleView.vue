@@ -50,6 +50,7 @@ async function accion(ruta: string, msg: string, metodo = 'POST') {
 async function validar() { try { validacion.value = await api(`/expedientes/${id}/validar-foliacion`) } catch (e) { error(e) } }
 async function quitarUltimo() { if (confirm('¿Retirar el último documento cargado?')) { try { await api(`/expedientes/${id}/documentos/ultimo`, { method: 'DELETE' }); ok('Documento retirado'); await cargar() } catch (e) { error(e) } } }
 const imprimir = () => abrirEnPestana(`/reportes/expedientes/${id}/caratula`).catch(error)
+const imprimirEtiqueta = () => abrirEnPestana(`/reportes/expedientes/${id}/etiqueta`).catch(error)
 onMounted(cargar)
 </script>
 
@@ -75,6 +76,7 @@ onMounted(cargar)
       </dl>
       <div class="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
         <button class="btn-ghost" @click="imprimir">🖨 Imprimir carátula</button>
+        <button v-if="auth.tieneRol('ROLE_ARCHIVISTA', 'ROLE_RESPONSABLE_UNIDAD')" class="btn-ghost" @click="imprimirEtiqueta">🏷 Etiqueta de carpeta</button>
         <button class="btn-ghost" @click="validar">Validar foliación</button>
         <template v-if="esArchivista">
           <button v-if="!foliado" class="btn-primary" @click="accion('foliar', 'Foliación definitiva registrada')">Foliación definitiva</button>

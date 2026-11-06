@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 import type { UsuarioAutenticado } from '../common/decorators/current-user.decorator.js';
+import { barrasPng, qrPng } from '../common/util/codigos.js';
 import { DisposicionService } from '../disposicion/disposicion.service.js';
 import { ExpedientesService } from '../expedientes/expedientes.service.js';
 import { PrestamosService } from '../prestamos/prestamos.service.js';
@@ -85,14 +86,55 @@ export class ReportesService {
 
   async etiquetaCaja(cajaId: string): Promise<Buffer> {
     const caja = await this.ubicaciones.detalleCaja(cajaId);
-    const qr = await this.ubicaciones.qrCaja(cajaId);
+    const [qr, barras] = await Promise.all([this.ubicaciones.qrCaja(cajaId), barrasPng(caja.codigo)]);
     return this.pdf({ size: [300, 200], margin: 14 }, (d) => {
-      d.font('Helvetica-Bold').fontSize(8).text(this.entidad, { width: 170 });
-      d.fontSize(20).text(caja.codigo, 14, 40, { width: 170 });
-      d.font('Helvetica').fontSize(9).text(`Ubicación: ${caja.ruta}`, 14, 72, { width: 170 });
-      d.text(`Carpetas: ${caja.expedientes.length}`, 14, 100, { width: 170 });
-      if (caja.descripcion) d.text(caja.descripcion, 14, 116, { width: 170, height: 60 });
-      d.image(qr, 190, 40, { width: 96 });
+      d.font('Helvetica-Bold').fontSize(8).text(this.entidad, 14, 14, { width: 170 });
+      d.fontSize(20).text(caja.codigo, 14, 32, { width: 170 });
+      d.font('Helvetica').fontSize(9).text(`Ubicación: ${caja.ruta}`, 14, 62, { width: 170 });
+      d.text(`Carpetas: ${caja.expedientes.length}`, 14, 90, { width: 170 });
+      if (caja.descripcion) d.text(caja.descripcion, 14, 104, { width: 170, height: 34, ellipsis: true });
+      d.image(qr, 196, 14, { width: 90 });
+      d.image(barras, 14, 142, { fit: [270, 46], align: 'center' });
+    });
+  }
+
+  private async dibujarEtiquetaCarpeta(d: Doc, e: Awaited<ReturnType<ExpedientesService['obtener']>>, ruta: string | null) {
+    const ubicacion = e.caja ? `${e.caja.codigo}${e.carpeta ? ` · carpeta ${e.carpeta}` : ''}` : 'Archivo de gestión';
+    const [qr, barras] = await Promise.all([
+      qrPng(`EXP:${e.codigo}|${e.caja?.codigo ?? '-'}|${e.carpeta ?? '-'}`),
+      barrasPng(e.codigo),
+    ]);
+    d.font('Helvetica-Bold').fontSize(8).text(this.entidad, 14, 14, { width: 180 });
+    d.fontSize(7).fillColor('#475569').text('ETIQUETA DE CARPETA', 14, 24, { width: 180 }).fillColor('black');
+    d.font('Helvetica-Bold').fontSize(13).text(e.codigo, 14, 36, { width: 180 });
+    d.font('Helvetica').fontSize(8).text(e.asunto, 14, 54, { width: 180, height: 34, ellipsis: true });
+    d.fontSize(8).text(`Unidad: ${e.unidadProductora?.sigla ?? e.unidadProductora?.nombre ?? '—'}`, 14, 92, { width: 180 });
+    d.text(`Fechas extremas: ${e.fechaInicio} a ${e.fechaFin ?? 'vigente'}`, 14, 103, { width: 180 });
+    d.text(`Fojas: ${e.fojaFin ? `1 a ${e.fojaFin}` : 'sin foliar'}`, 14, 114, { width: 180 });
+    d.font('Helvetica-Bold').text(`${ubicacion}${ruta ? ` (${ruta})` : ''}`, 14, 125, { width: 270, height: 20, ellipsis: true });
+    d.image(qr, 200, 14, { width: 84 });
+    d.image(barras, 14, 148, { fit: [270, 40], align: 'center' });
+  }
+
+  async etiquetaCarpeta(expedienteId: string, u: UsuarioAutenticado): Promise<Buffer> {
+    const e = await this.expedientes.obtener(expedienteId, u);
+    const ruta = e.caja ? await this.ubicaciones.rutaDe(e.caja.baldaId) : null;
+    return this.pdf({ size: [300, 200], margin: 0 }, (d) => this.dibujarEtiquetaCarpeta(d, e, ruta));
+  }
+
+  /** Una página (etiqueta) por cada carpeta de la caja. */
+  async etiquetasCarpetasDeCaja(cajaId: string, u: UsuarioAutenticado): Promise<Buffer> {
+    const caja = await this.ubicaciones.detalleCaja(cajaId);
+    return this.pdf({ size: [300, 200], margin: 0, autoFirstPage: false }, async (d) => {
+      if (!caja.expedientes.length) {
+        d.addPage();
+        d.font('Helvetica').fontSize(10).text('La caja no tiene carpetas.', 14, 14);
+      }
+      for (const lite of caja.expedientes) {
+        const e = await this.expedientes.obtener(lite.id, u);
+        d.addPage({ size: [300, 200], margin: 0 });
+        await this.dibujarEtiquetaCarpeta(d, e, caja.ruta);
+      }
     });
   }
 

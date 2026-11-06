@@ -16,6 +16,12 @@ export class ReportesController {
   @Get('cajas/:id/etiqueta') @Roles(Rol.ARCHIVISTA)
   async etiqueta(@Param('id', ParseUUIDPipe) id: string) { return pdf(await this.svc.etiquetaCaja(id), 'etiqueta-caja'); }
 
+  @Get('expedientes/:id/etiqueta') @Roles(Rol.ARCHIVISTA, Rol.RESPONSABLE_UNIDAD)
+  async etiquetaCarpeta(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) { return pdf(await this.svc.etiquetaCarpeta(id, u), 'etiqueta-carpeta'); }
+
+  @Get('cajas/:id/etiquetas-carpetas') @Roles(Rol.ARCHIVISTA)
+  async etiquetasCarpetas(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) { return pdf(await this.svc.etiquetasCarpetasDeCaja(id, u), 'etiquetas-carpetas'); }
+
   @Get('prestamos/:id/acta')
   async acta(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) { return pdf(await this.svc.actaPrestamo(id, u), 'acta-prestamo'); }
 

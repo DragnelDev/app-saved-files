@@ -141,6 +141,13 @@ ok((await api(archi, 'POST', `/prestamos/${pr.id}/devolver`, {})).data.estado ==
 const dr = (await api(resp, 'GET', '/dashboard')).data;
 ok(dr.tipo === 'UNIDAD' && dr.misExpedientes.length >= 1, 'dashboard de unidad');
 
+const eT = await nuevoExp(serie.id, 'Para transferir', '2026-04-01', '2026-04-30');
+ok((await api(archi, 'POST', '/transferencias', { expedienteIds: [eT.id] })).status === 400, 'archivista debe indicar la unidad de origen');
+const trA = await api(archi, 'POST', '/transferencias', { unidadOrigenId: un.id, expedienteIds: [eT.id] });
+ok(trA.status === 201 && trA.data.estado === 'BORRADOR' && trA.data.unidadOrigenId === un.id, 'archivista crea una transferencia a nombre de la unidad');
+ok((await api(consul, 'POST', '/transferencias', { unidadOrigenId: un.id, expedienteIds: [eT.id] })).status === 403, 'consultor no crea transferencias (403)');
+ok((await api(archi, 'DELETE', `/transferencias/${trA.data.id}`)).status === 200, 'archivista elimina el borrador');
+
 console.log('6b. Disposición final (Comisión de Valoración)');
 const serieE = (await api(admin, 'POST', '/clasificacion', { codigo: '1.1.2', nombre: 'Eliminables', nivel: 'SERIE', padreId: seccion.id })).data;
 const serieS = (await api(admin, 'POST', '/clasificacion', { codigo: '1.1.3', nombre: 'Muestreo', nivel: 'SERIE', padreId: seccion.id })).data;
@@ -183,11 +190,17 @@ await api(archi, 'POST', `/disposicion/propuestas/${pS.id}/ejecutar`);
 ok((await api(archi, 'GET', `/expedientes/${e6.id}`)).data.estado === 'HISTORICO' && (await api(archi, 'GET', `/expedientes/${e7.id}`)).data.estado === 'ELIMINADO', 'selección: uno pasa al Archivo Histórico y otro se elimina');
 
 console.log('7. Reportes PDF');
-for (const [ruta, nombre] of [[`/reportes/expedientes/${exp.id}/caratula`, 'carátula'], [`/reportes/cajas/${caja.id}/etiqueta`, 'etiqueta de caja'], [`/reportes/prestamos/${pr.id}/acta`, 'acta de préstamo'], [`/reportes/transferencias/${tr.id}/inventario`, 'inventario de transferencia'], [`/reportes/disposicion/${pS.id}/acta`, 'acta de disposición final']]) {
+for (const [ruta, nombre] of [[`/reportes/expedientes/${exp.id}/caratula`, 'carátula'], [`/reportes/cajas/${caja.id}/etiqueta`, 'etiqueta de caja'], [`/reportes/prestamos/${pr.id}/acta`, 'acta de préstamo'], [`/reportes/transferencias/${tr.id}/inventario`, 'inventario de transferencia'], [`/reportes/disposicion/${pS.id}/acta`, 'acta de disposición final'], [`/reportes/expedientes/${exp.id}/etiqueta`, 'etiqueta de carpeta (QR + barras)'], [`/reportes/cajas/${caja.id}/etiquetas-carpetas`, 'etiquetas de todas las carpetas de la caja']]) {
   const r = await api(archi, 'GET', ruta, null, true);
   const b = Buffer.from(await r.arrayBuffer());
   ok(r.status === 200 && b.subarray(0, 5).toString() === '%PDF-', `${nombre} (${b.length} bytes)`);
 }
+
+ok((await api(resp, 'GET', `/reportes/expedientes/${exp.id}/etiqueta`, null, true)).status === 200, 'responsable imprime la etiqueta de carpeta de su unidad');
+ok((await api(resp, 'GET', `/reportes/cajas/${caja.id}/etiqueta`, null, true)).status === 403, 'responsable no imprime etiquetas de caja (403)');
+ok((await api(consul, 'GET', `/reportes/expedientes/${exp.id}/etiqueta`, null, true)).status === 403, 'consultor no imprime etiquetas (403)');
+{ const r = await api(archi, 'GET', `/reportes/cajas/${caja.id}/etiqueta`, null, true); await writeFile('/tmp/etiqueta-caja.pdf', Buffer.from(await r.arrayBuffer()));
+  const r2 = await api(archi, 'GET', `/reportes/expedientes/${exp.id}/etiqueta`, null, true); await writeFile('/tmp/etiqueta-carpeta.pdf', Buffer.from(await r2.arrayBuffer())); }
 
 console.log('8. Auditoría inmutable');
 const aud = (await api(admin, 'GET', `/auditoria?tabla=expedientes&registroId=${exp.id}`)).data;

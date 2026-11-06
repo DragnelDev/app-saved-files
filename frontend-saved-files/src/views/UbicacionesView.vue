@@ -124,6 +124,10 @@ onMounted(cargar)
   <Modal :abierto="!!detalleCaja" :titulo="`Caja ${detalleCaja?.codigo}`" ancho="max-w-2xl" @cerrar="detalleCaja = null">
     <div v-if="detalleCaja" class="space-y-2 text-sm">
       <p><strong>Ubicación:</strong> {{ detalleCaja.ruta }}</p>
+      <div v-if="puedeEscribir" class="flex flex-wrap gap-2">
+        <button class="btn-ghost" @click="imprimir(`/reportes/cajas/${detalleCaja.id}/etiqueta`)">🏷 Etiqueta de la caja</button>
+        <button class="btn-ghost" :disabled="!detalleCaja.expedientes.length" @click="imprimir(`/reportes/cajas/${detalleCaja.id}/etiquetas-carpetas`)">🏷 Etiquetas de las {{ detalleCaja.expedientes.length }} carpetas</button>
+      </div>
       <p v-if="!detalleCaja.expedientes.length" class="text-slate-500">La caja está vacía.</p>
       <div v-for="e in detalleCaja.expedientes" :key="e.id" class="border-t border-slate-100 py-1.5 dark:border-slate-700">
         <RouterLink :to="`/expedientes/${e.id}`" class="font-medium text-emerald-700 hover:underline dark:text-emerald-300">Carpeta {{ e.carpeta ?? '—' }} · {{ e.codigo }}</RouterLink> — {{ e.asunto }}

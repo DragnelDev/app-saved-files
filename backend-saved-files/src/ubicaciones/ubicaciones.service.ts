@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import QRCode from 'qrcode';
 import { IsNull, Repository } from 'typeorm';
 import { EstadoExpediente, TipoUbicacion } from '../common/enums/archivo.enums.js';
+import { qrPng } from '../common/util/codigos.js';
 import { DbSetupService } from '../database/db-setup.service.js';
 import { Expediente } from '../expedientes/expediente.entity.js';
 import { CrearCajaDto, CrearUbicacionDto } from './ubicaciones.dto.js';
@@ -141,7 +141,7 @@ export class UbicacionesService {
   async qrCaja(id: string): Promise<Buffer> {
     const c = await this.cajas.findOneBy({ id, activo: true });
     if (!c) throw new NotFoundException('Caja no encontrada');
-    return QRCode.toBuffer(`CAJA:${c.codigo}|${await this.rutaDe(c.baldaId)}`, { width: 300, margin: 1 });
+    return qrPng(`CAJA:${c.codigo}|${await this.rutaDe(c.baldaId)}`);
   }
 
   /** Ocupación global del depósito (para el dashboard). */

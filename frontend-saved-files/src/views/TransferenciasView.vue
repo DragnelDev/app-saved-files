@@ -11,7 +11,9 @@ import { useAuth } from '@/stores/auth'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type R = Record<string, any>
 const auth = useAuth()
-const esResp = auth.rol === 'ROLE_RESPONSABLE_UNIDAD' || auth.rol === 'ROLE_ADMIN'
+const puedeEditar = auth.tieneRol('ROLE_ARCHIVISTA', 'ROLE_RESPONSABLE_UNIDAD')
+// El archivista (o admin) crea a nombre de una unidad que debe elegir; el responsable usa la suya.
+const necesitaUnidad = auth.rol !== 'ROLE_RESPONSABLE_UNIDAD'
 const esArchivista = auth.tieneRol('ROLE_ARCHIVISTA')
 
 const lista = ref<R[]>([])
@@ -29,7 +31,7 @@ const unidadOrigen = ref('')
 const modoEditar = ref(false)
 const ask = ref(false)
 
-const editable = computed(() => esResp && det.value && ['BORRADOR', 'OBSERVADO'].includes(det.value.estado))
+const editable = computed(() => puedeEditar && det.value && ['BORRADOR', 'OBSERVADO'].includes(det.value.estado))
 
 async function cargar() {
   try { lista.value = await api('/transferencias', { query: { estado: filtro.value } }) } catch (e) { error(e) }
@@ -52,9 +54,14 @@ async function verificar(d: R) {
     ok('Recepción registrada'); await abrir(det.value!.id)
   } catch (er) { error(er) }
 }
+async function cargarCandidatos() {
+  elegidos.value = []
+  if (necesitaUnidad && !unidadOrigen.value) { candidatos.value = []; return }
+  try { candidatos.value = (await api('/expedientes', { query: { estado: 'EN_GESTION', limit: 200, unidadId: necesitaUnidad ? unidadOrigen.value : undefined } })).items } catch (e) { error(e) }
+}
 async function nueva() {
-  modoEditar.value = false; elegidos.value = []; obs.value = ''
-  try { candidatos.value = (await api('/expedientes', { query: { estado: 'EN_GESTION', limit: 200 } })).items; if (!esResp || auth.rol === 'ROLE_ADMIN') unidades.value = await api('/unidades'); picker.value = true } catch (e) { error(e) }
+  modoEditar.value = false; elegidos.value = []; obs.value = ''; unidadOrigen.value = ''; candidatos.value = []
+  try { if (necesitaUnidad) unidades.value = await api('/unidades'); else await cargarCandidatos(); picker.value = true } catch (e) { error(e) }
 }
 async function editar() {
   modoEditar.value = true; elegidos.value = det.value!.detalles.map((d: R) => d.expedienteId)
@@ -63,7 +70,7 @@ async function editar() {
 async function guardarSeleccion() {
   try {
     if (modoEditar.value) { await api(`/transferencias/${det.value!.id}/expedientes`, { method: 'PUT', body: { expedienteIds: elegidos.value } }); ok('Inventario actualizado'); picker.value = false; await refrescar() }
-    else { const t = await api('/transferencias', { body: { expedienteIds: elegidos.value, observaciones: obs.value || undefined, unidadOrigenId: unidadOrigen.value || undefined } }); ok(`Transferencia ${t.codigo} creada`); picker.value = false; await cargar(); await abrir(t.id) }
+    else { const t = await api('/transferencias', { body: { expedienteIds: elegidos.value, observaciones: obs.value || undefined, unidadOrigenId: necesitaUnidad ? unidadOrigen.value : undefined } }); ok(`Transferencia ${t.codigo} creada`); picker.value = false; await cargar(); await abrir(t.id) }
   } catch (e) { error(e) }
 }
 async function eliminar() { if (confirm('¿Eliminar el borrador?')) { try { await api(`/transferencias/${det.value!.id}`, { method: 'DELETE' }); det.value = null; ok('Borrador eliminado'); await cargar() } catch (e) { error(e) } } }
@@ -75,7 +82,7 @@ onMounted(cargar)
 <template>
   <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
     <div><label class="label">Estado</label><select v-model="filtro" class="input w-56" @change="cargar"><option value="">Todos</option><option v-for="x in ['BORRADOR','ENVIADO','EN_REVISION','APROBADO_Y_RECIBIDO','OBSERVADO']" :key="x" :value="x">{{ x.replaceAll('_', ' ') }}</option></select></div>
-    <button v-if="auth.rol === 'ROLE_RESPONSABLE_UNIDAD'" class="btn-primary" @click="nueva">+ Nueva transferencia</button>
+    <button v-if="puedeEditar" class="btn-primary" @click="nueva">+ Nueva transferencia</button>
   </div>
 
   <div class="table-wrap">
@@ -134,8 +141,8 @@ onMounted(cargar)
 
   <Modal :abierto="picker" :titulo="modoEditar ? 'Editar expedientes de la transferencia' : 'Nueva transferencia'" ancho="max-w-2xl" @cerrar="picker = false">
     <div class="space-y-3">
-      <div v-if="!modoEditar && unidades.length"><label class="label">Unidad de origen</label><select v-model="unidadOrigen" class="input"><option value="">Selecciona…</option><option v-for="u in unidades" :key="u.id" :value="u.id">{{ u.nombre }}</option></select></div>
-      <p class="text-sm text-slate-500">Expedientes de tu unidad en archivo de gestión:</p>
+      <div v-if="!modoEditar && necesitaUnidad"><label class="label">Unidad de origen (a cuyo nombre se crea)</label><select v-model="unidadOrigen" class="input" @change="cargarCandidatos"><option value="">Selecciona…</option><option v-for="u in unidades" :key="u.id" :value="u.id">{{ u.nombre }}</option></select></div>
+      <p class="text-sm text-slate-500">{{ necesitaUnidad && !modoEditar ? 'Expedientes de la unidad seleccionada en archivo de gestión:' : 'Expedientes de la unidad en archivo de gestión:' }}</p>
       <div class="max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
         <p v-if="!candidatos.length" class="p-3 text-sm text-slate-500">No hay expedientes disponibles para transferir.</p>
         <label v-for="c in candidatos" :key="c.id" class="flex cursor-pointer items-start gap-2 border-b border-slate-100 p-2 text-sm last:border-0 dark:border-slate-700">
@@ -143,7 +150,7 @@ onMounted(cargar)
         </label>
       </div>
       <div v-if="!modoEditar"><label class="label">Observaciones</label><textarea v-model="obs" class="input" rows="2" /></div>
-      <div class="flex justify-end gap-2"><button class="btn-ghost" @click="picker = false">Cancelar</button><button class="btn-primary" :disabled="!elegidos.length" @click="guardarSeleccion">{{ modoEditar ? 'Guardar' : `Crear borrador (${elegidos.length})` }}</button></div>
+      <div class="flex justify-end gap-2"><button class="btn-ghost" @click="picker = false">Cancelar</button><button class="btn-primary" :disabled="!elegidos.length || (!modoEditar && necesitaUnidad && !unidadOrigen)" @click="guardarSeleccion">{{ modoEditar ? 'Guardar' : `Crear borrador (${elegidos.length})` }}</button></div>
     </div>
   </Modal>
 

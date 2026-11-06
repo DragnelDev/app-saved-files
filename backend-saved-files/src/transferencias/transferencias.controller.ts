@@ -12,17 +12,17 @@ export class TransferenciasController {
   @Get() listar(@Query() f: FiltroTransferenciasDto, @CurrentUser() u: UsuarioAutenticado) { return this.svc.listar(u, f.estado); }
   @Get(':id') obtener(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) { return this.svc.obtener(id, u); }
 
-  // --- Responsable de unidad ---
-  @Post() @Roles(Rol.RESPONSABLE_UNIDAD)
+  // --- Responsable de unidad (y archivista, a nombre de una unidad) ---
+  @Post() @Roles(Rol.RESPONSABLE_UNIDAD, Rol.ARCHIVISTA)
   crear(@Body() dto: CrearTransferenciaDto, @CurrentUser() u: UsuarioAutenticado) { return this.svc.crear(dto, u); }
 
-  @Put(':id/expedientes') @Roles(Rol.RESPONSABLE_UNIDAD)
+  @Put(':id/expedientes') @Roles(Rol.RESPONSABLE_UNIDAD, Rol.ARCHIVISTA)
   reemplazar(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReemplazarExpedientesDto, @CurrentUser() u: UsuarioAutenticado) { return this.svc.reemplazarExpedientes(id, dto.expedienteIds, u); }
 
-  @Post(':id/enviar') @Roles(Rol.RESPONSABLE_UNIDAD)
+  @Post(':id/enviar') @Roles(Rol.RESPONSABLE_UNIDAD, Rol.ARCHIVISTA)
   enviar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) { return this.svc.enviar(id, u); }
 
-  @Delete(':id') @Roles(Rol.RESPONSABLE_UNIDAD)
+  @Delete(':id') @Roles(Rol.RESPONSABLE_UNIDAD, Rol.ARCHIVISTA)
   async eliminar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) {
     await this.svc.eliminarBorrador(id, u);
     return { ok: true };
