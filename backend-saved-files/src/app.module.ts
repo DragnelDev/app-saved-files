@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -36,7 +37,10 @@ import { UsuariosModule } from './usuarios/usuarios.module.js';
         password: config.getOrThrow<string>('DB_PASSWORD'),
         autoLoadEntities: true,
         subscribers: [AuditableSubscriber, BitacoraSubscriber],
+        // Desarrollo: DB_SYNC=true crea tablas solas. Producción: DB_SYNC=false y se aplican las migraciones.
         synchronize: config.get('DB_SYNC') === 'true',
+        migrationsRun: config.get('DB_SYNC') !== 'true',
+        migrations: [fileURLToPath(new URL('./migrations/*.js', import.meta.url))],
       }),
     }),
     DatabaseModule,

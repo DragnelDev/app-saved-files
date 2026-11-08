@@ -10,7 +10,7 @@ export class TransferenciasController {
   constructor(private readonly svc: TransferenciasService) {}
 
   @Get() listar(@Query() f: FiltroTransferenciasDto, @CurrentUser() u: UsuarioAutenticado) { return this.svc.listar(u, f.estado); }
-  @Get(':id') obtener(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) { return this.svc.obtener(id, u); }
+  @Get(':id') obtener(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: UsuarioAutenticado) { return this.svc.obtenerConAdvertencias(id, u); }
 
   // --- Responsable de unidad (y archivista, a nombre de una unidad) ---
   @Post() @Roles(Rol.RESPONSABLE_UNIDAD, Rol.ARCHIVISTA)

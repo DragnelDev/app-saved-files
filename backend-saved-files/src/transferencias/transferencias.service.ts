@@ -44,6 +44,22 @@ export class TransferenciasService {
     if (u.rol === Rol.RESPONSABLE_UNIDAD && t.unidadOrigenId !== u.unidadId) throw new ForbiddenException('No tienes acceso a esta transferencia');
   }
 
+  /**
+   * Segregación de funciones (solo advierte, no bloquea): quien crea una transferencia a nombre de una
+   * unidad y también la revisa/aprueba debería ser otra persona.
+   */
+  advertencias(t: Transferencia, u: UsuarioAutenticado): string[] {
+    const revisa = u.rol === Rol.ARCHIVISTA || u.rol === Rol.ADMIN;
+    return revisa && t.creadoPor === u.id
+      ? ['Usted creó esta transferencia. Se recomienda que la revise y apruebe otro archivista (segregación de funciones).']
+      : [];
+  }
+
+  async obtenerConAdvertencias(id: string, u: UsuarioAutenticado) {
+    const t = await this.obtener(id, u);
+    return { ...t, advertencias: this.advertencias(t, u) };
+  }
+
   async listar(u: UsuarioAutenticado, estado?: ET) {
     const qb = this.repo
       .createQueryBuilder('t')
@@ -140,11 +156,11 @@ export class TransferenciasService {
     return this.obtener(id, u);
   }
 
-  async iniciarRevision(id: string, u: UsuarioAutenticado): Promise<Transferencia> {
+  async iniciarRevision(id: string, u: UsuarioAutenticado) {
     const t = await this.obtener(id, u);
     this.cambiar(t, ET.EN_REVISION);
     await actualizar(this.repo.manager, Transferencia, id, { estado: t.estado });
-    return this.obtener(id, u);
+    return this.obtenerConAdvertencias(id, u);
   }
 
   async verificarItem(id: string, detalleId: string, dto: VerificarItemDto, u: UsuarioAutenticado): Promise<DetalleTransferencia> {
@@ -162,7 +178,7 @@ export class TransferenciasService {
     return this.detalles.findOneByOrFail({ id: detalleId });
   }
 
-  async aprobar(id: string, u: UsuarioAutenticado): Promise<Transferencia> {
+  async aprobar(id: string, u: UsuarioAutenticado) {
     const t = await this.obtener(id, u);
     this.cambiar(t, ET.APROBADO_Y_RECIBIDO);
     const det = t.detalles ?? [];
@@ -189,7 +205,7 @@ export class TransferenciasService {
       }
       await actualizar(m, Transferencia, id, { estado: t.estado, fechaRecepcion: new Date() });
     });
-    return this.obtener(id, u);
+    return this.obtenerConAdvertencias(id, u);
   }
 
   async observar(id: string, dto: ObservarDto, u: UsuarioAutenticado): Promise<Transferencia> {

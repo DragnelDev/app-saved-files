@@ -8,43 +8,60 @@ con trazabilidad de la ubicación física y digital (Ley 2341, Ley 1178 SAFCO, l
 | `backend-saved-files`  | NestJS 11+ · TypeORM · PostgreSQL · JWT                 |
 | `frontend-saved-files` | Vue 3 (Composition API) · Vite · Tailwind CSS 4 · Pinia |
 
-## Puesta en marcha
+## Instalación en una PC de oficina (un solo programa)
 
-Requisitos: Node 22+, PostgreSQL 14+.
+El backend sirve también el frontend: basta con **un programa en un puerto** (3000). Requisitos: Node.js 22 LTS
+y PostgreSQL 16 (instaladores oficiales; anota la contraseña del usuario `postgres`). Funciona en Windows y en Linux.
+
+1. Crea la base de datos `archivo_municipal` (pgAdmin o `createdb archivo_municipal`).
+2. Copia la carpeta del proyecto a la PC (p. ej. `C:\ArchivoMunicipal`).
+3. En `backend-saved-files`, copia `.env.example` como `.env` y edítalo: `DB_PASSWORD`, un `JWT_SECRET` largo y aleatorio,
+   `ADMIN_USERNAME` / `ADMIN_PASSWORD` (entre comillas si lleva `#` o `$`), `STORAGE_DIR` (carpeta de los PDF, mejor en un
+   disco con espacio) y `RESPALDO_DIR` (idealmente un disco externo).
+4. Doble clic en **`instalar.bat`** (instala dependencias y compila; solo la primera vez y tras cada actualización).
+5. Doble clic en **`iniciar.bat`**. La primera vez crea las tablas (migraciones) y el administrador. Abre <http://localhost:3000>.
+6. Las otras PC de la red abren `http://IP-DE-ESA-PC:3000` (permite el puerto 3000 en el Firewall de Windows).
+   En una red local el tráfico va por HTTP sin cifrar; si se abre a Internet hay que poner HTTPS delante.
+
+En Linux/macOS: `npm install && npm run build` en ambas carpetas y luego `node dist/main.js` dentro de `backend-saved-files`.
+
+### Respaldos (importante)
+
+- **`respaldo.bat`** (o `npm run respaldo`) guarda en `RESPALDO_DIR/AAAA-MM-DD-HH-MM/` la base de datos (`pg_dump`) y todos los PDF,
+  y conserva los últimos `RESPALDO_CONSERVAR` respaldos. Prográmalo a diario: _Programador de tareas de Windows → Crear tarea básica →
+  Diaria → Iniciar un programa → `respaldo.bat` con el argumento `silencioso`_.
+- Copia esa carpeta a un disco externo u otra PC: un respaldo en el mismo disco no protege contra una falla del disco.
+- **Restaurar:** detén el sistema y ejecuta `npm run restaurar -- respaldos/2026-11-06-09-30 --confirmar` dentro de `backend-saved-files`
+  (sin `--confirmar` solo muestra qué haría). Sobrescribe los datos actuales. `pg_dump` y `pg_restore` deben estar en el PATH
+  (carpeta `bin` de PostgreSQL) o indicarse con `PG_DUMP` / `PG_RESTORE` en el `.env`.
+- Se verificó restaurar en una base nueva: mismos registros, PDF idénticos byte a byte y bitácora inmutable intacta.
+
+### Actualizar a una versión nueva
+
+Haz un respaldo, reemplaza el código **sin tocar** `.env` ni la carpeta de PDF, ejecuta `instalar.bat` e `iniciar.bat`:
+las migraciones nuevas se aplican solas al arrancar.
+
+## Desarrollo
 
 ```bash
-# 1. Base de datos
 createdb archivo_municipal
-
-# 2. Backend
-cd backend-saved-files
-cp .env.example .env        # editar credenciales, JWT_SECRET y ADMIN_PASSWORD
-npm install
-npm run start:dev           # http://localhost:3000/api
-
-# 3. Frontend
-cd ../frontend-saved-files
-npm install
-npm run dev                 # http://localhost:5173  (reenvía /api al backend)
+cd backend-saved-files && cp .env.example .env && npm install && npm run start:dev   # http://localhost:3000/api
+cd ../frontend-saved-files && npm install && npm run dev                              # http://localhost:5173 (proxy /api)
 ```
 
-Con `DB_SYNC=true` (solo desarrollo) las tablas se crean solas. El primer arranque crea el usuario
-administrador de `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
-
-> En el `.env`, los valores con `#` o `$` deben ir entre comillas (`ADMIN_PASSWORD="Clave#2026"`),
-> porque un `#` sin comillas se interpreta como comentario.
-
-**Producción:** poner `DB_SYNC=false`, generar y versionar migraciones de TypeORM, definir un `JWT_SECRET`
-largo y aleatorio, y servir `frontend-saved-files/dist` (`npm run build`) detrás de HTTPS.
+**Esquema de la base de datos:** se gestiona con migraciones de TypeORM (`src/migrations`), que se aplican al arrancar con
+`DB_SYNC=false` (valor por defecto). `DB_SYNC=true` hace que TypeORM ajuste las tablas solo y puede borrar columnas con datos:
+úsalo únicamente con datos descartables. Al cambiar una entidad: `npm run migracion:generar -- NombreDelCambio` (con la BD en el
+estado de la última migración) crea el archivo de migración con la diferencia; revísalo, compílalo y reinicia.
 
 ## Roles
 
-| Rol                       | Puede                                                                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `ROLE_ADMIN`              | Todo: usuarios, unidades, cuadro de clasificación y TRD, bitácora                                                   |
-| `ROLE_ARCHIVISTA`         | Aprobar transferencias, ubicar cajas, autorizar préstamos, foliación definitiva y re-foliación, actas de valoración |
-| `ROLE_RESPONSABLE_UNIDAD` | Crear expedientes de su unidad, cargar PDF, armar y enviar transferencias, solicitar préstamos                      |
-| `ROLE_CONSULTOR`          | Solo lectura de expedientes públicos, ubicaciones, actas y bitácora                                                 |
+| Rol                       | Puede                                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ROLE_ADMIN`              | Todo: usuarios, unidades, cuadro de clasificación y TRD, bitácora                                                                                                            |
+| `ROLE_ARCHIVISTA`         | Aprobar transferencias (y crearlas a nombre de una unidad), ubicar cajas, autorizar préstamos, foliación definitiva y re-foliación, disposición final y actas de la Comisión |
+| `ROLE_RESPONSABLE_UNIDAD` | Crear expedientes de su unidad, cargar PDF, armar y enviar transferencias, solicitar préstamos                                                                               |
+| `ROLE_CONSULTOR`          | Solo lectura de expedientes públicos, ubicaciones, actas y bitácora                                                                                                          |
 
 ## Reglas implementadas
 
@@ -55,7 +72,7 @@ largo y aleatorio, y servir `frontend-saved-files/dist` (`npm run build`) detrá
 - **Disposición final:** al cumplirse el plazo de la TRD (años en gestión + años en central, contados desde el año de la fecha extrema final), el expediente aparece como vencido. El archivista arma una **propuesta** por tipo de disposición: `BORRADOR → EN_COMISION → APROBADA | RECHAZADA → EJECUTADA`. Aprobar exige el número y la fecha del acta de la Comisión de Valoración. Al ejecutar, la eliminación deja el expediente en `ELIMINADO` (se libera su caja) y la conservación permanente lo pasa a `HISTORICO`; en selección / muestreo se decide expediente por expediente. Los archivos PDF digitales **no se borran automáticamente**.
 - **Auditoría:** todas las tablas llevan `creado_por`, `fecha_creacion`, `actualizado_por`, `fecha_actualizacion`, `activo`. Además, `bitacora_auditoria` guarda cada alta y cambio (con valores anteriores y nuevos) y un trigger de PostgreSQL impide modificarla o borrarla. Las contraseñas nunca se registran.
 - **Códigos:** expediente = `código de serie / gestión / correlativo` (p. ej. `1.1.1/2026/0001`); cajas `CAJ-000001`; transferencias `TR-2026-0001`; préstamos `PR-2026-0001`.
-- **Reportes PDF:** carátula de expediente, etiqueta de caja con QR, acta de préstamo, inventario de transferencia y acta de disposición final. Son un formato referencial: ajústalos al formulario oficial vigente del ABNB en `backend-saved-files/src/reportes/reportes.service.ts`.
+- **Reportes PDF:** carátula de expediente, etiquetas de caja y de carpeta (con QR y código de barras Code 128), etiquetas de todas las carpetas de una caja, acta de préstamo, inventario de transferencia y acta de disposición final. Son un formato referencial: ajústalos al formulario oficial vigente del ABNB en `backend-saved-files/src/reportes/reportes.service.ts`.
 
 ## Pruebas
 

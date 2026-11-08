@@ -146,6 +146,9 @@ ok((await api(archi, 'POST', '/transferencias', { expedienteIds: [eT.id] })).sta
 const trA = await api(archi, 'POST', '/transferencias', { unidadOrigenId: un.id, expedienteIds: [eT.id] });
 ok(trA.status === 201 && trA.data.estado === 'BORRADOR' && trA.data.unidadOrigenId === un.id, 'archivista crea una transferencia a nombre de la unidad');
 ok((await api(consul, 'POST', '/transferencias', { unidadOrigenId: un.id, expedienteIds: [eT.id] })).status === 403, 'consultor no crea transferencias (403)');
+ok((await api(archi, 'GET', `/transferencias/${trA.data.id}`)).data.advertencias.length === 1, 'segregación: advierte (sin bloquear) si el archivista que creó la transferencia la revisa');
+ok((await api(archi, 'GET', `/transferencias/${tr.id}`)).data.advertencias.length === 0, 'sin advertencia si la creó el responsable de unidad');
+
 ok((await api(archi, 'DELETE', `/transferencias/${trA.data.id}`)).status === 200, 'archivista elimina el borrador');
 
 console.log('6b. Disposición final (Comisión de Valoración)');

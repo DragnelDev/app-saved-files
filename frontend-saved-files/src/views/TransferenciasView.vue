@@ -47,6 +47,11 @@ async function refrescar() { await cargar(); if (det.value) await abrir(det.valu
 async function accion(ruta: string, msg: string, body?: unknown) {
   try { await api(`/transferencias/${det.value!.id}/${ruta}`, { method: 'POST', body: body ?? {} }); ok(msg); await refrescar() } catch (e) { error(e) }
 }
+// Segregación de funciones: solo advierte; el archivista decide si continúa.
+async function aprobar() {
+  if (det.value?.advertencias?.length && !confirm(`${det.value.advertencias[0]}\n\n¿Aprobar de todos modos?`)) return
+  await accion('aprobar', 'Transferencia aprobada y recibida')
+}
 async function verificar(d: R) {
   const e = edits[d.id]!
   try {
@@ -104,6 +109,7 @@ onMounted(cargar)
       <div class="flex flex-wrap items-center gap-3 text-sm">
         <Badge :valor="det.estado" /><span>{{ det.unidadOrigen?.nombre }}</span><span class="text-slate-500">Envío: {{ fechaHora(det.fechaEnvio) }} · Recepción: {{ fechaHora(det.fechaRecepcion) }}</span>
       </div>
+      <p v-if="det.advertencias?.length" class="rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100" role="alert">⚠ {{ det.advertencias[0] }}</p>
       <p v-if="det.observaciones" class="rounded-lg bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100"><strong>Observaciones:</strong> {{ det.observaciones }}</p>
 
       <div class="table-wrap">
@@ -132,7 +138,7 @@ onMounted(cargar)
           <template v-if="editable"><button class="btn-ghost" @click="editar">Editar expedientes</button><button v-if="det.estado === 'BORRADOR'" class="btn-ghost text-rose-600" @click="eliminar">Eliminar</button><button class="btn-primary" @click="accion('enviar', 'Transferencia enviada')">Enviar al Archivo Central</button></template>
           <template v-if="esArchivista">
             <button v-if="det.estado === 'ENVIADO'" class="btn-primary" @click="accion('iniciar-revision', 'Revisión iniciada')">Iniciar revisión</button>
-            <template v-if="det.estado === 'EN_REVISION'"><button class="btn-ghost text-rose-600" @click="ask = true">Observar</button><button class="btn-primary" @click="accion('aprobar', 'Transferencia aprobada y recibida')">Aprobar y recibir</button></template>
+            <template v-if="det.estado === 'EN_REVISION'"><button class="btn-ghost text-rose-600" @click="ask = true">Observar</button><button class="btn-primary" @click="aprobar">Aprobar y recibir</button></template>
           </template>
         </div>
       </div>
