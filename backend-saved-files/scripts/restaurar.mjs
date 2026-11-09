@@ -5,6 +5,7 @@ import 'dotenv/config';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { ubicarPg } from './pg.mjs';
 
 const args = process.argv.slice(2);
 const opcion = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
@@ -20,12 +21,12 @@ const destinoPdf = resolve(opcion('--storage') ?? process.env.STORAGE_DIR ?? './
 console.log(`Respaldo : ${dir}\nBase     : ${db} (se sobrescribe)\nPDF a    : ${destinoPdf}`);
 if (!args.includes('--confirmar')) { console.log('\nNo se hizo nada. Agrega --confirmar para restaurar. Detén el sistema antes de restaurar.'); process.exit(0); }
 
-const pgRestore = process.env.PG_RESTORE ?? 'pg_restore';
+const pgRestore = ubicarPg('pg_restore', 'PG_RESTORE');
 const r = spawnSync(pgRestore, ['-h', process.env.DB_HOST ?? 'localhost', '-p', String(process.env.DB_PORT ?? 5432), '-U', process.env.DB_USER, '-d', db, '--clean', '--if-exists', '--no-owner', dump], {
   env: { ...process.env, PGPASSWORD: process.env.DB_PASSWORD ?? '' },
   encoding: 'utf8',
 });
-if (r.error) { console.error(`ERROR: ${r.error.message}\nSi pg_restore no está en el PATH, define PG_RESTORE con su ruta completa.`); process.exit(1); }
+if (r.error) { console.error(`ERROR: ${r.error.message}\nNo se encontró pg_restore: instala PostgreSQL o define PG_RESTORE con su ruta completa en el .env.`); process.exit(1); }
 if (r.status !== 0) console.warn(`pg_restore terminó con avisos:\n${r.stderr}`);
 if (existsSync(join(dir, 'storage'))) cpSync(join(dir, 'storage'), destinoPdf, { recursive: true });
 console.log('Restauración terminada. Inicia el sistema y verifica un expediente con su visor de PDF.');

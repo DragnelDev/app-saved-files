@@ -1,6 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -11,6 +11,11 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  test: {
+    // Pruebas de vistas contra el backend real (ver src/__tests__/vistas.spec.ts). jsdom no define fetch: se usa el de Node.
+    environment: 'jsdom',
+    testTimeout: 30000,
   },
   server: {
     // En desarrollo el frontend llama a /api y Vite lo reenvía al backend de NestJS.

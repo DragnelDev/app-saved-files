@@ -76,7 +76,7 @@ onMounted(cargar)
     <form class="space-y-3" @submit.prevent="guardarU">
       <div v-if="!u.id" class="grid grid-cols-2 gap-3">
         <div><label class="label">Usuario</label><input v-model="u.username" class="input" required pattern="[a-zA-Z0-9._-]{3,60}" /></div>
-        <div><label class="label">Contraseña (mín. 8)</label><input v-model="u.password" type="password" class="input" required minlength="8" autocomplete="new-password" /></div>
+        <div><label class="label">Contraseña temporal (8+, con letra y número)</label><input v-model="u.password" type="password" class="input" required minlength="8" autocomplete="new-password" /></div>
       </div>
       <div><label class="label">Nombre completo</label><input v-model="u.nombreCompleto" class="input" required /></div>
       <div><label class="label">Correo</label><input v-model="u.email" type="email" class="input" /></div>
@@ -84,6 +84,7 @@ onMounted(cargar)
         <div><label class="label">Rol</label><select v-model="u.rol" class="input"><option v-for="(t, k) in ROLES" :key="k" :value="k">{{ t }}</option></select></div>
         <div><label class="label">Unidad {{ u.rol === 'ROLE_RESPONSABLE_UNIDAD' ? '(obligatoria)' : '' }}</label><select v-model="u.unidadId" class="input" :required="u.rol === 'ROLE_RESPONSABLE_UNIDAD'"><option value="">—</option><option v-for="x in unidades" :key="x.id" :value="x.id">{{ x.nombre }}</option></select></div>
       </div>
+      <p v-if="!u.id" class="text-xs text-slate-500">La persona deberá cambiar esta contraseña en su primer ingreso.</p>
       <div class="flex justify-end gap-2"><button type="button" class="btn-ghost" @click="mU = false">Cancelar</button><button class="btn-primary">Guardar</button></div>
     </form>
   </Modal>
@@ -96,5 +97,5 @@ onMounted(cargar)
     </form>
   </Modal>
 
-  <AskModal :abierto="!!pass" :titulo="`Nueva contraseña para ${pass?.username}`" etiqueta="Contraseña (mínimo 8 caracteres)" requerido boton="Cambiar" @cerrar="pass = null" @aceptar="cambiarPass" />
+  <AskModal :abierto="!!pass" :titulo="`Nueva contraseña para ${pass?.username}`" etiqueta="Contraseña temporal (mínimo 8, con letra y número). La persona deberá cambiarla al ingresar." requerido boton="Cambiar" @cerrar="pass = null" @aceptar="cambiarPass" />
 </template>

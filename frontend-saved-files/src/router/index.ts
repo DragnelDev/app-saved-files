@@ -19,6 +19,7 @@ const router = createRouter({
     { path: '/ubicaciones', name: 'ubicaciones', component: () => import('@/views/UbicacionesView.vue'), meta: { titulo: 'Ubicación topográfica', roles: ['ROLE_ARCHIVISTA', 'ROLE_CONSULTOR'] } },
     { path: '/administracion', name: 'administracion', component: () => import('@/views/AdminView.vue'), meta: { titulo: 'Administración', roles: [] } },
     { path: '/auditoria', name: 'auditoria', component: () => import('@/views/AuditoriaView.vue'), meta: { titulo: 'Auditoría', roles: ['ROLE_CONSULTOR'] } },
+    { path: '/mi-cuenta', name: 'cuenta', component: () => import('@/views/MiCuentaView.vue'), meta: { titulo: 'Mi cuenta' } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
@@ -27,6 +28,8 @@ router.beforeEach((to) => {
   const auth = useAuth()
   if (to.meta.publica) return auth.token ? { name: 'dashboard' } : true
   if (!auth.token) return { name: 'login' }
+  // Contraseña temporal: hasta cambiarla solo se puede entrar a "Mi cuenta".
+  if (auth.usuario?.debeCambiarPassword && to.name !== 'cuenta') return { name: 'cuenta' }
   if (to.meta.roles && !auth.tieneRol(...to.meta.roles)) return { name: 'dashboard' }
   return true
 })

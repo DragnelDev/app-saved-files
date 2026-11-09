@@ -59,18 +59,36 @@ async function verificar(d: R) {
     ok('Recepción registrada'); await abrir(det.value!.id)
   } catch (er) { error(er) }
 }
+// Selector de expedientes: busca en el servidor (código, asunto o palabras clave) y recuerda lo ya marcado.
+const busqueda = ref('')
+const totalCandidatos = ref(0)
+let temporizador: ReturnType<typeof setTimeout> | undefined
+async function consultarCandidatos(unidadId?: string) {
+  const r = await api('/expedientes', { query: { estado: 'EN_GESTION', limit: 100, unidadId, q: busqueda.value || undefined } })
+  candidatos.value = r.items
+  totalCandidatos.value = r.total
+}
 async function cargarCandidatos() {
   elegidos.value = []
-  if (necesitaUnidad && !unidadOrigen.value) { candidatos.value = []; return }
-  try { candidatos.value = (await api('/expedientes', { query: { estado: 'EN_GESTION', limit: 200, unidadId: necesitaUnidad ? unidadOrigen.value : undefined } })).items } catch (e) { error(e) }
+  if (necesitaUnidad && !unidadOrigen.value) { candidatos.value = []; totalCandidatos.value = 0; return }
+  try { await consultarCandidatos(necesitaUnidad ? unidadOrigen.value : undefined) } catch (e) { error(e) }
+}
+function buscarCandidatos() {
+  clearTimeout(temporizador)
+  temporizador = setTimeout(() => {
+    const unidadId = modoEditar.value ? det.value?.unidadOrigenId : necesitaUnidad ? unidadOrigen.value : undefined
+    if (necesitaUnidad && !modoEditar.value && !unidadOrigen.value) return
+    consultarCandidatos(unidadId).catch(error)
+  }, 300)
 }
 async function nueva() {
-  modoEditar.value = false; elegidos.value = []; obs.value = ''; unidadOrigen.value = ''; candidatos.value = []
+  modoEditar.value = false; elegidos.value = []; obs.value = ''; unidadOrigen.value = ''; candidatos.value = []; busqueda.value = ''; totalCandidatos.value = 0
   try { if (necesitaUnidad) unidades.value = await api('/unidades'); else await cargarCandidatos(); picker.value = true } catch (e) { error(e) }
 }
 async function editar() {
   modoEditar.value = true; elegidos.value = det.value!.detalles.map((d: R) => d.expedienteId)
-  try { candidatos.value = (await api('/expedientes', { query: { estado: 'EN_GESTION', limit: 200, unidadId: det.value!.unidadOrigenId } })).items; picker.value = true } catch (e) { error(e) }
+  busqueda.value = ''
+  try { await consultarCandidatos(det.value!.unidadOrigenId); picker.value = true } catch (e) { error(e) }
 }
 async function guardarSeleccion() {
   try {
@@ -149,6 +167,8 @@ onMounted(cargar)
     <div class="space-y-3">
       <div v-if="!modoEditar && necesitaUnidad"><label class="label">Unidad de origen (a cuyo nombre se crea)</label><select v-model="unidadOrigen" class="input" @change="cargarCandidatos"><option value="">Selecciona…</option><option v-for="u in unidades" :key="u.id" :value="u.id">{{ u.nombre }}</option></select></div>
       <p class="text-sm text-slate-500">{{ necesitaUnidad && !modoEditar ? 'Expedientes de la unidad seleccionada en archivo de gestión:' : 'Expedientes de la unidad en archivo de gestión:' }}</p>
+      <input v-model="busqueda" class="input" placeholder="Buscar por código, asunto o palabra clave…" aria-label="Buscar expedientes" @input="buscarCandidatos" />
+      <p class="text-xs text-slate-500">Mostrando {{ candidatos.length }} de {{ totalCandidatos }} · {{ elegidos.length }} seleccionado(s)<span v-if="totalCandidatos > candidatos.length"> — usa la búsqueda para encontrar los demás</span></p>
       <div class="max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
         <p v-if="!candidatos.length" class="p-3 text-sm text-slate-500">No hay expedientes disponibles para transferir.</p>
         <label v-for="c in candidatos" :key="c.id" class="flex cursor-pointer items-start gap-2 border-b border-slate-100 p-2 text-sm last:border-0 dark:border-slate-700">

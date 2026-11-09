@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import { PASSWORD_MENSAJE, PASSWORD_POLITICA } from '../../usuarios/usuarios.dto.js';
 
 export class LoginDto {
   @IsString()
@@ -10,4 +11,9 @@ export class LoginDto {
   @IsNotEmpty()
   @MaxLength(128)
   password: string;
+}
+
+export class CambiarPasswordPropiaDto {
+  @IsString() @IsNotEmpty() @MaxLength(128) actual: string;
+  @IsString() @Matches(PASSWORD_POLITICA, { message: PASSWORD_MENSAJE }) nueva: string;
 }

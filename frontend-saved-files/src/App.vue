@@ -11,8 +11,10 @@ const auth = useAuth()
 
 // Sesión vencida (401 del backend): volver al login.
 const expirada = () => { auth.logout(); router.push('/login') }
-onMounted(() => window.addEventListener('auth:expirada', expirada))
-onBeforeUnmount(() => window.removeEventListener('auth:expirada', expirada))
+// El administrador restableció la contraseña con la sesión abierta.
+const cambioRequerido = () => { auth.marcarPasswordPendiente(); router.push('/mi-cuenta') }
+onMounted(() => { window.addEventListener('auth:expirada', expirada); window.addEventListener('auth:cambio-password', cambioRequerido) })
+onBeforeUnmount(() => { window.removeEventListener('auth:expirada', expirada); window.removeEventListener('auth:cambio-password', cambioRequerido) })
 </script>
 
 <template>

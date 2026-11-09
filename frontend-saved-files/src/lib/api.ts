@@ -40,6 +40,7 @@ async function pedir(path: string, o: Opciones = {}): Promise<Response> {
   try {
     const j = await res.json()
     mensaje = Array.isArray(j.message) ? j.message.join('. ') : (j.message ?? mensaje)
+    if (res.status === 403 && j.codigo === 'CAMBIO_PASSWORD_REQUERIDO') window.dispatchEvent(new Event('auth:cambio-password'))
   } catch {
     /* sin cuerpo JSON */
   }

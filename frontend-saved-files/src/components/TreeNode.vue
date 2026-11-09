@@ -5,7 +5,7 @@ import { ref } from 'vue'
 type Nodo = Record<string, any>
 const props = defineProps<{ nodo: Nodo; seleccionado?: string | null; nivel?: number }>()
 const emit = defineEmits<{ seleccionar: [nodo: Nodo] }>()
-const abierto = ref((props.nivel ?? 0) < 1)
+const abierto = ref((props.nivel ?? 0) < 2)
 const tipo = () => String(props.nodo.nivel ?? props.nodo.tipo ?? '')
 </script>
 

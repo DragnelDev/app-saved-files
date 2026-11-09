@@ -5,11 +5,12 @@ import 'dotenv/config';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { ubicarPg } from './pg.mjs';
 
 const base = resolve(process.env.RESPALDO_DIR ?? './respaldos');
 const conservar = Math.max(1, Number(process.env.RESPALDO_CONSERVAR ?? 30));
 const storage = resolve(process.env.STORAGE_DIR ?? './storage');
-const pgDump = process.env.PG_DUMP ?? 'pg_dump';
+const pgDump = ubicarPg('pg_dump', 'PG_DUMP');
 const sello = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-'); // AAAA-MM-DD-HH-MM
 const dir = join(base, sello);
 
@@ -22,7 +23,7 @@ const r = spawnSync(
 if (r.error || r.status !== 0) {
   rmSync(dir, { recursive: true, force: true });
   console.error('ERROR: no se pudo respaldar la base de datos.');
-  console.error(r.error ? `${r.error.message}\nSi pg_dump no está en el PATH, define PG_DUMP con su ruta completa en el .env.` : r.stderr);
+  console.error(r.error ? `${r.error.message}\nNo se encontró pg_dump: instala PostgreSQL o define PG_DUMP con su ruta completa en el .env.` : r.stderr);
   process.exit(1);
 }
 let pdfs = 0;

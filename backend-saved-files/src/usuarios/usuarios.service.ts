@@ -28,6 +28,7 @@ export class UsuariosService implements OnApplicationBootstrap {
         passwordHash: await bcrypt.hash(password, 12),
         nombreCompleto: this.config.get('ADMIN_NOMBRE', 'Administrador'),
         rol: Rol.ADMIN,
+        debeCambiarPassword: true,
       }),
     );
     this.logger.warn(`Usuario administrador inicial "${username}" creado.`);
@@ -60,7 +61,7 @@ export class UsuariosService implements OnApplicationBootstrap {
     this.validarRolUnidad(dto.rol, dto.unidadId);
     if (await this.repo.existsBy({ username: dto.username })) throw new ConflictException('El nombre de usuario ya existe');
     const { password, ...resto } = dto;
-    const u = await this.repo.save(this.repo.create({ ...resto, passwordHash: await bcrypt.hash(password, 12) }));
+    const u = await this.repo.save(this.repo.create({ ...resto, passwordHash: await bcrypt.hash(password, 12), debeCambiarPassword: true }));
     return this.buscarPorId(u.id) as Promise<Usuario>;
   }
 
@@ -76,9 +77,19 @@ export class UsuariosService implements OnApplicationBootstrap {
     return this.buscarPorId(id) as Promise<Usuario>;
   }
 
+  /** Restablecimiento por el administrador: la contraseña queda como temporal. */
   async cambiarPassword(id: string, password: string): Promise<void> {
-    const n = await actualizar(this.repo.manager, Usuario, { id, activo: true }, { passwordHash: await bcrypt.hash(password, 12) });
+    const n = await actualizar(this.repo.manager, Usuario, { id, activo: true }, { passwordHash: await bcrypt.hash(password, 12), debeCambiarPassword: true });
     if (!n) throw new NotFoundException('Usuario no encontrado');
+  }
+
+  /** Cambio de contraseña por el propio usuario (exige la actual). */
+  async cambiarPropia(id: string, actual: string, nueva: string): Promise<void> {
+    const u = await this.repo.createQueryBuilder('u').addSelect('u.passwordHash').where('u.id = :id AND u.activo = true', { id }).getOne();
+    // 400 y no 401: un 401 haría que el navegador cierre la sesión.
+    if (!u || !(await bcrypt.compare(actual, u.passwordHash))) throw new BadRequestException('La contraseña actual no es correcta');
+    if (actual === nueva) throw new BadRequestException('La nueva contraseña debe ser distinta de la actual');
+    await actualizar(this.repo.manager, Usuario, u.id, { passwordHash: await bcrypt.hash(nueva, 12), debeCambiarPassword: false });
   }
 
   async desactivar(id: string, solicitanteId: string): Promise<void> {

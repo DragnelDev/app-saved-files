@@ -21,7 +21,17 @@ async function api(token, method, path, body, raw = false) {
   let data; try { data = JSON.parse(txt); } catch { data = txt; }
   return { status: res.status, data };
 }
-const login = async (username, password) => (await api(null, 'POST', '/auth/login', { username, password })).data.accessToken;
+// Las cuentas nuevas (y el admin inicial) tienen contraseña temporal: se cambia en el primer ingreso.
+const NUEVA_PASS = 'Cambiada#2026';
+async function login(username, password) {
+  const r = (await api(null, 'POST', '/auth/login', { username, password })).data;
+  if (r.usuario?.debeCambiarPassword) {
+    const c = await api(r.accessToken, 'POST', '/auth/cambiar-password', { actual: password, nueva: NUEVA_PASS });
+    if (c.status !== 200) throw new Error(`No se pudo cambiar la contraseña de ${username}: ${JSON.stringify(c.data)}`);
+    return login(username, NUEVA_PASS);
+  }
+  return r.accessToken;
+}
 const pdfBuf = (t) => new Promise((r) => { const d = new PDFDocument(); const c = []; d.on('data', (x) => c.push(x)); d.on('end', () => r(Buffer.concat(c))); d.text(t); d.end(); });
 async function subir(token, expId, titulo, ini, fin, contenido) {
   const fd = new FormData();
@@ -41,6 +51,29 @@ ok((await mk('resp', 'ROLE_RESPONSABLE_UNIDAD', un.id)) === 201, 'usuario respon
 ok((await mk('consul', 'ROLE_CONSULTOR')) === 201, 'usuario consultor');
 ok((await mk('resp2', 'ROLE_RESPONSABLE_UNIDAD')) === 400, 'responsable sin unidad rechazado');
 const [archi, resp, consul] = [await login('archi', 'Clave#1234'), await login('resp', 'Clave#1234'), await login('consul', 'Clave#1234')];
+
+console.log('1b. Cuentas y contraseñas');
+const cu = (await api(admin, 'POST', '/usuarios', { username: 'cuenta1', password: 'Temporal#123', nombreCompleto: 'Cuenta de prueba', rol: 'ROLE_CONSULTOR' })).data;
+const l1 = (await api(null, 'POST', '/auth/login', { username: 'cuenta1', password: 'Temporal#123' })).data;
+ok(l1.usuario.debeCambiarPassword === true, 'usuario nuevo: contraseña temporal');
+const bloqueada = await api(l1.accessToken, 'GET', '/expedientes');
+ok(bloqueada.status === 403 && bloqueada.data.codigo === 'CAMBIO_PASSWORD_REQUERIDO', 'con contraseña temporal todo queda bloqueado salvo cambiarla');
+ok((await api(l1.accessToken, 'GET', '/auth/me')).status === 200, '...pero puede ver su sesión (/auth/me)');
+const cambia = (nueva, actual = 'Temporal#123') => api(l1.accessToken, 'POST', '/auth/cambiar-password', { actual, nueva });
+ok((await cambia('Definitiva#456', 'incorrecta')).status === 400, 'rechaza si la contraseña actual es incorrecta');
+ok((await cambia('corta1')).status === 400, 'rechaza contraseña corta');
+ok((await cambia('sololetrasaaaa')).status === 400, 'exige al menos un número');
+ok((await cambia('Temporal#123')).status === 400, 'la nueva debe ser distinta de la actual');
+ok((await cambia('Definitiva#456')).status === 200, 'cambia su contraseña');
+const l2 = (await api(null, 'POST', '/auth/login', { username: 'cuenta1', password: 'Definitiva#456' })).data;
+ok(l2.usuario.debeCambiarPassword === false && (await api(l2.accessToken, 'GET', '/expedientes')).status === 200, 'tras cambiarla accede normalmente');
+ok((await api(null, 'POST', '/auth/login', { username: 'cuenta1', password: 'Temporal#123' })).status === 401, 'la contraseña temporal deja de servir');
+await api(admin, 'PATCH', `/usuarios/${cu.id}/password`, { password: 'Reinicio#789' });
+ok((await api(null, 'POST', '/auth/login', { username: 'cuenta1', password: 'Reinicio#789' })).data.usuario.debeCambiarPassword === true, 'restablecer la contraseña (admin) la vuelve temporal');
+ok((await api(admin, 'POST', '/usuarios', { username: 'debil', password: '12345678', nombreCompleto: 'x', rol: 'ROLE_CONSULTOR' })).status === 400, 'el admin tampoco puede asignar contraseñas débiles');
+for (let i = 0; i < 5; i++) await api(null, 'POST', '/auth/login', { username: 'fantasma', password: 'x' });
+ok((await api(null, 'POST', '/auth/login', { username: 'fantasma', password: 'x' })).status === 429, 'tras 5 intentos fallidos el login se bloquea (429)');
+ok((await api(null, 'POST', '/auth/login', { username: 'admin', password: 'incorrecta' })).status === 401, 'el bloqueo no afecta a otros usuarios');
 
 console.log('2. Cuadro de clasificación y TRD');
 const fondo = (await api(admin, 'POST', '/clasificacion', { codigo: '1', nombre: 'GAM', nivel: 'FONDO' })).data;

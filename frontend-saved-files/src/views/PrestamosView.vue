@@ -21,6 +21,15 @@ const det = ref<R | null>(null)
 const aDevolver = ref<string[]>([])
 const modal = ref(false)
 const disponibles = ref<R[]>([])
+const busqueda = ref('')
+const totalDisponibles = ref(0)
+let temporizador: ReturnType<typeof setTimeout> | undefined
+async function cargarDisponibles() {
+  const r = await api('/expedientes', { query: { estado: 'EN_ARCHIVO_CENTRAL', limit: 100, q: busqueda.value || undefined } })
+  disponibles.value = r.items
+  totalDisponibles.value = r.total
+}
+function buscarDisponibles() { clearTimeout(temporizador); temporizador = setTimeout(() => cargarDisponibles().catch(error), 300) }
 const unidades = ref<R[]>([])
 const elegidos = ref<string[]>([])
 const f = reactive({ tipoSolicitante: 'UNIDAD', solicitanteNombre: '', unidadSolicitanteId: '', motivo: '' })
@@ -36,7 +45,8 @@ async function refrescar() { await cargar(); if (det.value) { try { await abrir(
 async function nuevo() {
   Object.assign(f, { tipoSolicitante: 'UNIDAD', solicitanteNombre: '', unidadSolicitanteId: '', motivo: '' }); elegidos.value = []
   try {
-    disponibles.value = (await api('/expedientes', { query: { estado: 'EN_ARCHIVO_CENTRAL', limit: 200 } })).items
+    busqueda.value = ''
+    await cargarDisponibles()
     if (!esResp) unidades.value = await api('/unidades')
     modal.value = true
   } catch (e) { error(e) }
@@ -116,6 +126,8 @@ onMounted(cargar)
     <form class="space-y-3" @submit.prevent="solicitar">
       <div>
         <label class="label">Expedientes en el Archivo Central ({{ elegidos.length }} seleccionados)</label>
+        <input v-model="busqueda" class="input mb-1" placeholder="Buscar por código, asunto o palabra clave…" aria-label="Buscar expedientes" @input="buscarDisponibles" />
+        <p class="mb-1 text-xs text-slate-500">Mostrando {{ disponibles.length }} de {{ totalDisponibles }}<span v-if="totalDisponibles > disponibles.length"> — usa la búsqueda para encontrar los demás</span></p>
         <div class="max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
           <p v-if="!disponibles.length" class="p-3 text-sm text-slate-500">No hay expedientes disponibles en el Archivo Central.</p>
           <label v-for="e in disponibles" :key="e.id" class="flex cursor-pointer items-start gap-2 border-b border-slate-100 p-2 text-sm last:border-0 dark:border-slate-700"><input v-model="elegidos" type="checkbox" :value="e.id" class="mt-1" /><span><strong class="font-mono text-xs">{{ e.codigo }}</strong> — {{ e.asunto }}</span></label>

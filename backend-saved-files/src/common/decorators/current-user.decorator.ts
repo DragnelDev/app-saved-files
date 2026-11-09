@@ -6,6 +6,7 @@ export interface UsuarioAutenticado {
   username: string;
   rol: Rol;
   unidadId: string | null;
+  debeCambiarPassword: boolean;
 }
 
 export const CurrentUser = createParamDecorator(

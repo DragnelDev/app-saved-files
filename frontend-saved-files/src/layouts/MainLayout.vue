@@ -21,8 +21,11 @@ const items: { to: string; texto: string; roles?: Rol[]; icono: string }[] = [
   { to: '/ubicaciones', texto: 'Ubicación topográfica', icono: '📍', roles: ['ROLE_ARCHIVISTA', 'ROLE_CONSULTOR'] },
   { to: '/auditoria', texto: 'Auditoría', icono: '🛡', roles: ['ROLE_CONSULTOR'] },
   { to: '/administracion', texto: 'Administración', icono: '⚙', roles: [] },
+  { to: '/mi-cuenta', texto: 'Mi cuenta', icono: '👤' },
 ]
-const visibles = computed(() => items.filter((i) => !i.roles || auth.tieneRol(...i.roles)))
+const visibles = computed(() =>
+  auth.usuario?.debeCambiarPassword ? items.filter((i) => i.to === '/mi-cuenta') : items.filter((i) => !i.roles || auth.tieneRol(...i.roles)),
+)
 
 function salir() { auth.logout(); router.push('/login') }
 </script>

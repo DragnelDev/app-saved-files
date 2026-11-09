@@ -20,6 +20,10 @@ export class Usuario extends AuditableEntity {
   @Column({ type: 'enum', enum: Rol, enumName: 'rol_usuario' })
   rol: Rol;
 
+  /** Contraseña temporal (alta o restablecimiento por el administrador): se debe cambiar al ingresar. */
+  @Column({ name: 'debe_cambiar_password', type: 'boolean', default: false })
+  debeCambiarPassword: boolean;
+
   @Column({ name: 'unidad_id', type: 'uuid', nullable: true })
   unidadId: string | null;
 

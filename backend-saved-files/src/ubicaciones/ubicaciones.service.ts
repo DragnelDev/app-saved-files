@@ -105,24 +105,22 @@ export class UbicacionesService {
     );
   }
 
-  async listarCajas(baldaId?: string) {
-    const qb = this.cajas
-      .createQueryBuilder('c')
-      .leftJoinAndSelect('c.balda', 'b')
-      .where('c.activo = true')
-      .orderBy('c.codigo');
-    if (baldaId) qb.andWhere('c.balda_id = :baldaId', { baldaId });
-    const lista = await qb.getMany();
-    const conteos = await this.expedientes
-      .createQueryBuilder('e')
-      .select('e.caja_id', 'cajaId')
-      .addSelect('COUNT(*)', 'n')
-      .where('e.activo = true AND e.caja_id IS NOT NULL')
-      .groupBy('e.caja_id')
-      .getRawMany<{ cajaId: string; n: string }>();
-    const mapa = new Map(conteos.map((c) => [c.cajaId, Number(c.n)]));
-    return Promise.all(
-      lista.map(async (c) => ({ ...c, ruta: await this.rutaDe(c.baldaId), carpetas: mapa.get(c.id) ?? 0 })),
+  /** Una sola consulta (ruta por CTE recursiva + conteo agrupado): no hay N+1 aunque existan miles de cajas. */
+  listarCajas(baldaId?: string): Promise<(Pick<CajaArchivo, 'id' | 'codigo' | 'descripcion' | 'baldaId' | 'capacidadCarpetas'> & { ruta: string; carpetas: number })[]> {
+    return this.cajas.query(
+      `WITH RECURSIVE r AS (
+         SELECT id, codigo::text AS ruta FROM ubicacion_topografica WHERE padre_id IS NULL
+         UNION ALL
+         SELECT u.id, r.ruta || '/' || u.codigo FROM ubicacion_topografica u JOIN r ON u.padre_id = r.id
+       )
+       SELECT c.id, c.codigo, c.descripcion, c.balda_id AS "baldaId", c.capacidad_carpetas AS "capacidadCarpetas",
+              r.ruta, COALESCE(n.n, 0)::int AS carpetas
+         FROM cajas_archivo c
+         JOIN r ON r.id = c.balda_id
+         LEFT JOIN (SELECT caja_id, COUNT(*) AS n FROM expedientes WHERE activo AND caja_id IS NOT NULL GROUP BY caja_id) n ON n.caja_id = c.id
+        WHERE c.activo AND ($1::uuid IS NULL OR c.balda_id = $1::uuid)
+        ORDER BY c.codigo`,
+      [baldaId ?? null],
     );
   }
 
